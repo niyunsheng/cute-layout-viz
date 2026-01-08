@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 
 function Layout() {
   const [layoutInput, setLayoutInput] = useState('(12,(4,8)):(59,(13,1))');
@@ -233,7 +233,6 @@ function Layout() {
         if (topLevelDims === 2) {
           // 2D expansion: mode0 corresponds to rows, mode1 corresponds to columns
           const mode0DimsCount = flattenCount(mode0Shape);
-          const mode1DimsCount = flattenCount(mode1Shape);
 
           // First mode0DimsCount coordinates determine row
           const mode0Coords = coords.slice(0, mode0DimsCount);
@@ -382,7 +381,7 @@ function Layout() {
                         flattenMode(parsedLayout.shape[0], parsedLayout.stride[0], mode0Flat, stride0);
                         flattenMode(parsedLayout.shape[1], parsedLayout.stride[1], mode1Flat, stride1);
 
-                        const parts = [];
+                        const parts: string[] = [];
                         stride0.forEach((s: number, i: number) => parts.push(`mode0[${i}] × ${s}`));
                         stride1.forEach((s: number, i: number) => parts.push(`mode1[${i}] × ${s}`));
                         return `offset = ${parts.join(' + ')}`;
