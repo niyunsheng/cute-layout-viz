@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { useState } from 'react'
 import Navbar from './components/Navbar'
+import GitHubCorner from './components/GitHubCorner'
 import Home from './pages/Home'
 import Layout from './pages/Layout'
 import Composition from './pages/Composition'
@@ -16,6 +17,7 @@ function App() {
   return (
     <>
       <Navbar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
+      <GitHubCorner />
       <div className={`app-content ${isCollapsed ? 'collapsed' : ''}`}>
         <Routes>
           <Route path="/" element={<Home />} />
