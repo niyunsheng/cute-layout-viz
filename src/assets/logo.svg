@@ -1,0 +1,59 @@
+<svg width="512" height="512" viewBox="120 85 310 310" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .fill-dark { fill: #2D2D2D; }   /* dark gray */
+      .fill-blue { fill: #00BFFF; }   /* bright cyan */
+      
+      .tile-box {
+        fill: #2D2D2D;
+        stroke: #00BFFF;
+        stroke-width: 9;
+        paint-order: stroke;
+      }
+      
+      .grip-stripe {
+        stroke: #00BFFF;
+        stroke-width: 4;
+        stroke-linecap: round;
+        fill: none;
+      }
+    </style>
+  </defs>
+
+  <rect x="280" y="340" width="26" height="26" class="tile-box" />
+  
+  <rect x="340" y="310" width="24" height="24" class="tile-box" transform="rotate(15 352 322)" />
+
+
+  <g>
+    <path d="M175 255 
+             L 135 295 
+             Q 125 305, 135 315 
+             Q 145 325, 155 315
+             L 195 275 Z" 
+             class="fill-dark" />
+             
+    <line x1="145" y1="295" x2="165" y2="275" class="grip-stripe" />
+    <line x1="150" y1="300" x2="170" y2="280" class="grip-stripe" />
+    <line x1="155" y1="305" x2="175" y2="285" class="grip-stripe" />
+
+    
+    <path d="M150 280 L210 220" stroke="#2D2D2D" stroke-width="14" stroke-linecap="round" />
+
+    <path d="M190 240 
+             Q 270 170, 350 140 
+             Q 390 125, 420 100 
+             L 415 110
+             Q 360 230, 260 300
+             Z" 
+             class="fill-dark" />
+
+    <path d="M195 235
+             Q 275 165, 355 135
+             Q 395 120, 425 95
+             L 420 100 
+             Q 390 130, 350 145
+             Q 270 175, 195 235 Z" 
+             class="fill-blue" />
+  </g>
+</svg>

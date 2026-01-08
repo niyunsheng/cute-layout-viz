@@ -1,33 +1,32 @@
+import { Routes, Route } from 'react-router-dom'
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import Navbar from './components/Navbar'
+import Home from './pages/Home'
+import Layout from './pages/Layout'
+import Composition from './pages/Composition'
+import Complement from './pages/Complement'
+import Division from './pages/Division'
+import Product from './pages/Product'
+import BankConflict from './pages/BankConflict'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <Navbar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
+      <div className={`app-content ${isCollapsed ? 'collapsed' : ''}`}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/layout" element={<Layout />} />
+          <Route path="/composition" element={<Composition />} />
+          <Route path="/complement" element={<Complement />} />
+          <Route path="/division" element={<Division />} />
+          <Route path="/product" element={<Product />} />
+          <Route path="/bank-conflict" element={<BankConflict />} />
+        </Routes>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
   )
 }
