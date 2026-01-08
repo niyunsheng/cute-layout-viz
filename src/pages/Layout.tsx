@@ -1,9 +1,24 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 function Layout() {
-  const [layoutInput, setLayoutInput] = useState('(12,(4,8)):(59,(13,1))');
+  const [searchParams] = useSearchParams();
+  const [layoutInput, setLayoutInput] = useState(() => {
+    const layoutParam = searchParams.get('layout');
+    return layoutParam || '(12,(4,8)):(59,(13,1))';
+  });
   const [error, setError] = useState('');
   const [hoveredCell, setHoveredCell] = useState<{row: number, col: number} | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Parse URL parameters on component mount
+  useEffect(() => {
+    const layoutParam = searchParams.get('layout');
+    if (layoutParam) {
+      setLayoutInput(layoutParam);
+      setError('');
+    }
+  }, [searchParams]);
 
   // Parse Layout string
   const parseLayout = (input: string) => {
@@ -336,6 +351,23 @@ function Layout() {
               <div className="mt-2 text-red-600 text-sm font-medium">
                 ⚠️ {error}
               </div>
+            )}
+            
+            {/* Share Button */}
+            {!error && parsedLayout && (
+              <button
+                onClick={() => {
+                  const baseUrl = `${window.location.origin}${window.location.pathname}`;
+                  const shareUrl = `${baseUrl}#/layout?layout=${layoutInput}`;
+                  navigator.clipboard.writeText(shareUrl).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
+                }}
+                className="mt-3 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium transition-colors"
+              >
+                {copied ? '✓ Link copied!' : 'Share This Layout'}
+              </button>
             )}
           </div>
 
