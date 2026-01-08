@@ -1,10 +1,8 @@
-import '../styles/common.css'
-
 function Complement() {
   return (
-    <div className="page-container">
-      <h1 className="page-title">Complement</h1>
-      <p className="page-subtitle">Coming Soon...</p>
+    <div className="p-0 min-h-screen">
+      <h1 className="text-4xl m-0 text-black">Complement</h1>
+      <p className="text-xl text-gray-600 mt-4">Coming Soon...</p>
     </div>
   )
 }
