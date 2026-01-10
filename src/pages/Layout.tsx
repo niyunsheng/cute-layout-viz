@@ -1,5 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import {
+  parseLayoutString,
+  Layout as LayoutClass,
+  type LayoutValue,
+  countElements,
+  generateCoordinates,
+  calculateOffset,
+  formatCoord
+} from '../utils';
 
 function Layout() {
   const [searchParams] = useSearchParams();
@@ -20,225 +29,14 @@ function Layout() {
     }
   }, [searchParams]);
 
-  // Parse Layout string
-  const parseLayout = (input: string) => {
-    try {
-      // Input validation
-      if (!input || !input.trim()) {
-        throw new Error('Input cannot be empty');
-      }
-
-      const cleaned = input.replace(/\s/g, '');
-
-      // Check for colon
-      if (!cleaned.includes(':')) {
-        throw new Error('Missing ":" separator');
-      }
-
-      const parts = cleaned.split(':');
-      if (parts.length !== 2) {
-        throw new Error('Expected format: Shape:Stride');
-      }
-
-      if (!parts[0] || !parts[1]) {
-        throw new Error('Both shape and stride required');
-      }
-
-      // Check balanced parentheses
-      const checkBalanced = (s: string, name: string) => {
-        const open = (s.match(/\(/g) || []).length;
-        const close = (s.match(/\)/g) || []).length;
-        if (open !== close) {
-          throw new Error(`Unbalanced parentheses in ${name}`);
-        }
-      };
-
-      checkBalanced(parts[0], 'shape');
-      checkBalanced(parts[1], 'stride');
-
-      // Pre-validate: check structure signature match
-      const getStructureSig = (s: string): string => {
-        let depth = 0;
-        let topLevelCommas = 0;
-        for (const char of s) {
-          if (char === '(') depth++;
-          else if (char === ')') depth--;
-          else if (char === ',' && depth === 0) topLevelCommas++;
-        }
-        const parenCount = (s.match(/\(/g) || []).length;
-        return `${parenCount},${topLevelCommas}`;
-      };
-
-      const shapeSig = getStructureSig(parts[0]);
-      const strideSig = getStructureSig(parts[1]);
-
-      if (shapeSig !== strideSig) {
-        throw new Error('Shape and stride structure mismatch');
-      }
-
-      const parseValue = (str: string): any => {
-        str = str.trim();
-
-        if (!str) {
-          throw new Error('Empty value encountered');
-        }
-
-        // Single number case
-        if (!str.startsWith('(')) {
-          // Validate characters before parsing
-          if (!/^-?\d+$/.test(str)) {
-            throw new Error(`Invalid characters in "${str}"`);
-          }
-          const num = parseInt(str, 10);
-          if (isNaN(num)) {
-            throw new Error(`Cannot parse "${str}" as integer`);
-          }
-          return num;
-        }
-
-        // Tuple case
-        if (str.startsWith('(') && str.endsWith(')')) {
-          const inner = str.slice(1, -1);
-
-          // Empty parentheses check
-          if (!inner) {
-            throw new Error('Empty parentheses "()" not allowed');
-          }
-
-          // Check for trailing comma
-          if (inner.endsWith(',')) {
-            throw new Error('Trailing comma not allowed');
-          }
-
-          let depth = 0;
-          let hasNested = false;
-
-          // Check if nested
-          for (const char of inner) {
-            if (char === '(') {
-              hasNested = true;
-              break;
-            }
-          }
-
-          if (hasNested) {
-            // Nested structure
-            const values = [];
-            depth = 0;
-            let current = '';
-
-            for (const char of inner) {
-              if (char === '(') depth++;
-              if (char === ')') depth--;
-
-              if (depth < 0) {
-                throw new Error('Unbalanced parentheses');
-              }
-
-              if (char === ',' && depth === 0) {
-                if (!current.trim()) {
-                  throw new Error('Empty element (double comma)');
-                }
-                values.push(parseValue(current));
-                current = '';
-              } else {
-                current += char;
-              }
-            }
-
-            // Add last value
-            if (current) {
-              if (!current.trim()) {
-                throw new Error('Empty element detected');
-              }
-              values.push(parseValue(current));
-            }
-
-            if (values.length === 0) {
-              throw new Error('Tuple must have at least one element');
-            }
-
-            return values;
-            } else {
-            // Simple tuple: (4,8)
-            const items = inner.split(',');
-            const values = items.map(v => {
-              const trimmed = v.trim();
-              if (!trimmed) {
-                throw new Error('Empty element (double comma)');
-              }
-              // Validate characters
-              if (!/^-?\d+$/.test(trimmed)) {
-                throw new Error(`Invalid characters in "${trimmed}"`);
-              }
-              const num = parseInt(trimmed, 10);
-              if (isNaN(num)) {
-                throw new Error(`Cannot parse "${trimmed}" as integer`);
-              }
-              return num;
-            });
-            return values;
-          }
-        }
-
-        throw new Error(`Invalid format: "${str}"`);
-      };
-
-      const shape = parseValue(parts[0]);
-      const stride = parseValue(parts[1]);
-
-      // Post-validate: ensure shape and stride have matching structure
-      const validateStructure = (s: any, st: any): void => {
-        const sIsArray = Array.isArray(s);
-        const stIsArray = Array.isArray(st);
-
-        if (sIsArray && stIsArray) {
-          if (s.length !== st.length) {
-            throw new Error('Shape and stride length mismatch');
-          }
-          for (let i = 0; i < s.length; i++) {
-            validateStructure(s[i], st[i]);
-          }
-        } else if (sIsArray || stIsArray) {
-          throw new Error('Shape and stride type mismatch');
-        }
-        // Both are numbers - OK
-      };
-
-      validateStructure(shape, stride);
-
-      return { shape, stride };
-    } catch (e) {
-      throw new Error(e instanceof Error ? e.message : 'Invalid layout format');
-    }
-  };
-
   const { gridData, rows, cols, parsedLayout, displayInfo, colCoords, rowCoords } = useMemo(() => {
     try {
-      const parsed = parseLayout(layoutInput);
+      const parsed = parseLayoutString(layoutInput);
       setError('');
 
-      // Flatten shape and stride
-      const flattenStructure = (s: any, st: any): { shape: number[], stride: number[] } => {
-        const shapeArr: number[] = [];
-        const strideArr: number[] = [];
-
-        const flatten = (shapeVal: any, strideVal: any) => {
-          if (Array.isArray(shapeVal)) {
-            for (let i = 0; i < shapeVal.length; i++) {
-              flatten(shapeVal[i], strideVal[i]);
-            }
-          } else {
-            shapeArr.push(shapeVal);
-            strideArr.push(strideVal);
-          }
-        };
-
-        flatten(s, st);
-        return { shape: shapeArr, stride: strideArr };
-      };
-
-      const { shape: shapeArr, stride: strideArr } = flattenStructure(parsed.shape, parsed.stride);
+      // Create Layout instance
+      const layout = new LayoutClass(parsed.shape, parsed.stride);
+      const { shape: shapeArr, stride: strideArr } = layout.flatten();
 
       if (shapeArr.some(s => isNaN(s) || s <= 0)) {
         throw new Error('Shape must be positive integers');
@@ -248,121 +46,17 @@ function Layout() {
         throw new Error('Stride must be integers');
       }
 
-      // Helper function: count total elements
-      const countElements = (s: any): number => {
-        if (Array.isArray(s)) {
-          return s.reduce((acc, item) => acc * countElements(item), 1);
-        }
-        return s;
-      };
-
-      // Generate coordinate combinations (column-major: dim0 changes fastest)
-      const generateCoords = (shape: any): any[] => {
-        if (typeof shape === 'number') {
-          return Array.from({ length: shape }, (_, i) => i);
-        }
-
-        // Check if this is a simple array (all elements are numbers)
-        const isSimpleArray = Array.isArray(shape) && shape.every(s => typeof s === 'number');
-
-        if (isSimpleArray) {
-          // Simple array like [11, 2, 2] -> generate flat coordinates like [0,0,0]
-          const totalElements = shape.reduce((a: number, b: number) => a * b, 1);
-          const result: number[][] = [];
-
-          for (let i = 0; i < totalElements; i++) {
-            const coords: number[] = [];
-            let remainder = i;
-
-            for (let j = 0; j < shape.length; j++) {
-              coords[j] = remainder % shape[j];
-              remainder = Math.floor(remainder / shape[j]);
-            }
-
-            result.push(coords);
-          }
-
-          return result;
-        }
-
-        // Nested array like [12, [4, 8]] -> generate nested coordinates
-        // Recursively generate coordinates for each sub-shape
-        const coordLists = shape.map((s: any) => generateCoords(s));
-
-        // Combine in column-major order (first dimension changes fastest)
-        const combine = (lists: any[][]): any[] => {
-          if (lists.length === 1) {
-            return lists[0];
-          }
-
-          const result: any[] = [];
-          const restCoords = combine(lists.slice(0, -1));
-          const lastCoords = lists[lists.length - 1];
-
-          for (const lastCoord of lastCoords) {
-            for (const restCoord of restCoords) {
-              result.push([restCoord, lastCoord]);
-            }
-          }
-
-          return result;
-        };
-
-        return combine(coordLists);
-      };
-
-      // Calculate offset from coordinates and strides
-      const calculateOffset = (coords: any, stride: any): number => {
-        if (typeof coords === 'number') {
-          return coords * (stride as number);
-        }
-
-        // Check if both coords and stride are simple arrays (all numbers)
-        const coordsIsSimpleArray = Array.isArray(coords) && coords.every((c: any) => typeof c === 'number');
-        const strideIsSimpleArray = Array.isArray(stride) && stride.every((s: any) => typeof s === 'number');
-
-        if (coordsIsSimpleArray && strideIsSimpleArray) {
-          // Both are flat arrays like [0,0,0] and [3,59,1]
-          let offset = 0;
-          for (let i = 0; i < coords.length; i++) {
-            offset += coords[i] * stride[i];
-          }
-          return offset;
-        }
-
-        // Nested case: recursively calculate
-        let offset = 0;
-        for (let i = 0; i < coords.length; i++) {
-          offset += calculateOffset(coords[i], stride[i]);
-        }
-        return offset;
-      };
-
-      // Format coordinate as string
-      const formatCoord = (coord: any): string => {
-        if (typeof coord === 'number') {
-          return String(coord);
-        }
-        // Check if this is a simple array (all numbers)
-        const isSimpleArray = Array.isArray(coord) && coord.every((c: any) => typeof c === 'number');
-        if (isSimpleArray) {
-          return `(${coord.join(',')})`;
-        }
-        // Nested array
-        return `(${coord.map(formatCoord).join(',')})`;
-      };
-
       // Determine top-level logical dimensions
       const topLevelDims = Array.isArray(parsed.shape) ? parsed.shape.length : 1;
 
       let r = 1, c = 1;
-      let mode0Shape: any = null, mode1Shape: any = null;
-      let mode0Stride: any = null, mode1Stride: any = null;
+      let mode0Shape: LayoutValue | null = null, mode1Shape: LayoutValue | null = null;
+      let mode0Stride: LayoutValue | null = null, mode1Stride: LayoutValue | null = null;
       const data = [];
       const rowCoordsArray: string[] = [];
       const colCoordsArray: string[] = [];
 
-      if (topLevelDims === 2) {
+      if (topLevelDims === 2 && Array.isArray(parsed.shape) && Array.isArray(parsed.stride)) {
         // Top level is 2D: mode0 = rows, mode1 = cols (EFFICIENT PATH)
         mode0Shape = parsed.shape[0];
         mode1Shape = parsed.shape[1];
@@ -373,8 +67,8 @@ function Layout() {
         c = countElements(mode1Shape);
 
         // Generate coordinates separately for mode0 and mode1
-        const mode0Coords = generateCoords(mode0Shape);
-        const mode1Coords = generateCoords(mode1Shape);
+        const mode0Coords = generateCoordinates(mode0Shape);
+        const mode1Coords = generateCoordinates(mode1Shape);
 
         // Build grid with nested loops (Python's efficient approach)
         for (let rowIdx = 0; rowIdx < mode0Coords.length; rowIdx++) {
@@ -405,7 +99,7 @@ function Layout() {
         mode1Shape = parsed.shape;
         mode1Stride = parsed.stride;
 
-        const coords = generateCoords(mode1Shape);
+        const coords = generateCoordinates(mode1Shape);
         c = coords.length;
 
         for (let i = 0; i < coords.length; i++) {
@@ -505,18 +199,24 @@ function Layout() {
                     {toDisplayString(parsedLayout.stride)}
                   </div>
                 </div>
-                {Array.isArray(parsedLayout.shape) && parsedLayout.shape.length === 2 && (
-                  <div className="mt-2 pt-2 border-t border-blue-300 text-xs">
-                    <div><span className="font-semibold">Mode0 (rows):</span> Shape={toDisplayString(parsedLayout.shape[0])}, Stride={toDisplayString(parsedLayout.stride[0])}</div>
-                    <div><span className="font-semibold">Mode1 (cols):</span> Shape={toDisplayString(parsedLayout.shape[1])}, Stride={toDisplayString(parsedLayout.stride[1])}</div>
-                  </div>
-                )}
+                {Array.isArray(parsedLayout.shape) && parsedLayout.shape.length === 2 && Array.isArray(parsedLayout.stride) && (() => {
+                  const shapeArray = parsedLayout.shape as LayoutValue[];
+                  const strideArray = parsedLayout.stride as LayoutValue[];
+                  return (
+                    <div className="mt-2 pt-2 border-t border-blue-300 text-xs">
+                      <div><span className="font-semibold">Mode0 (rows):</span> Shape={toDisplayString(shapeArray[0])}, Stride={toDisplayString(strideArray[0])}</div>
+                      <div><span className="font-semibold">Mode1 (cols):</span> Shape={toDisplayString(shapeArray[1])}, Stride={toDisplayString(strideArray[1])}</div>
+                    </div>
+                  );
+                })()}
                 <div className="mt-2 pt-2 border-t border-blue-300">
                   <div className="font-mono text-xs">
                     {(() => {
                       const topLevelDims = Array.isArray(parsedLayout.shape) ? parsedLayout.shape.length : 1;
                       if (topLevelDims === 2) {
                         // 2D: display mode-related formula
+                        const shapeArray = parsedLayout.shape as LayoutValue[];
+                        const strideArray = parsedLayout.stride as LayoutValue[];
                         const mode0Flat: number[] = [];
                         const mode1Flat: number[] = [];
                         const flattenMode = (s: any, st: any, arr: number[], strArr: number[]) => {
@@ -529,8 +229,8 @@ function Layout() {
                         };
                         const stride0: number[] = [];
                         const stride1: number[] = [];
-                        flattenMode(parsedLayout.shape[0], parsedLayout.stride[0], mode0Flat, stride0);
-                        flattenMode(parsedLayout.shape[1], parsedLayout.stride[1], mode1Flat, stride1);
+                        flattenMode(shapeArray[0], strideArray[0], mode0Flat, stride0);
+                        flattenMode(shapeArray[1], strideArray[1], mode1Flat, stride1);
 
                         const parts: string[] = [];
                         stride0.forEach((s: number, i: number) => parts.push(`mode0[${i}] × ${s}`));
