@@ -31,7 +31,7 @@ function Layout() {
     }
   }, [searchParams]);
 
-  const { gridData, rows, cols, parsedLayout, displayInfo, colCoords, rowCoords } = useMemo(() => {
+  const { gridData, rows, cols, parsedLayout, colCoords, rowCoords } = useMemo(() => {
     try {
       const parsed = parseLayoutString(layoutInput);
       setError('');
@@ -118,7 +118,6 @@ function Layout() {
         rows: r,
         cols: c,
         parsedLayout: parsed,
-        displayInfo: { shapeArr, strideArr },
         colCoords: colCoordsArray,
         rowCoords: rowCoordsArray
       };
@@ -129,7 +128,6 @@ function Layout() {
         rows: 0,
         cols: 0,
         parsedLayout: null,
-        displayInfo: null,
         colCoords: [],
         rowCoords: []
       };
@@ -394,70 +392,6 @@ function Layout() {
             )}
           </div>
 
-          {parsedLayout && (
-            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-              <div className="text-sm space-y-1">
-                <div className="flex items-start gap-2">
-                  <span className="font-semibold">Shape:</span>
-                  <div className="font-mono">
-                    {toDisplayString(parsedLayout.shape)}
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="font-semibold">Stride:</span>
-                  <div className="font-mono">
-                    {toDisplayString(parsedLayout.stride)}
-                  </div>
-                </div>
-                {Array.isArray(parsedLayout.shape) && parsedLayout.shape.length === 2 && Array.isArray(parsedLayout.stride) && (() => {
-                  const shapeArray = parsedLayout.shape as LayoutValue[];
-                  const strideArray = parsedLayout.stride as LayoutValue[];
-                  return (
-                    <div className="mt-2 pt-2 border-t border-blue-300 text-xs">
-                      <div><span className="font-semibold">Mode0 (rows):</span> Shape={toDisplayString(shapeArray[0])}, Stride={toDisplayString(strideArray[0])}</div>
-                      <div><span className="font-semibold">Mode1 (cols):</span> Shape={toDisplayString(shapeArray[1])}, Stride={toDisplayString(strideArray[1])}</div>
-                    </div>
-                  );
-                })()}
-                <div className="mt-2 pt-2 border-t border-blue-300">
-                  <div className="font-mono text-xs">
-                    {(() => {
-                      const topLevelDims = Array.isArray(parsedLayout.shape) ? parsedLayout.shape.length : 1;
-                      if (topLevelDims === 2) {
-                        // 2D: display mode-related formula
-                        const shapeArray = parsedLayout.shape as LayoutValue[];
-                        const strideArray = parsedLayout.stride as LayoutValue[];
-                        const mode0Flat: number[] = [];
-                        const mode1Flat: number[] = [];
-                        const flattenMode = (s: any, st: any, arr: number[], strArr: number[]) => {
-                          if (Array.isArray(s)) {
-                            s.forEach((item: any, i: number) => flattenMode(item, st[i], arr, strArr));
-                          } else {
-                            arr.push(s);
-                            strArr.push(st);
-                          }
-                        };
-                        const stride0: number[] = [];
-                        const stride1: number[] = [];
-                        flattenMode(shapeArray[0], strideArray[0], mode0Flat, stride0);
-                        flattenMode(shapeArray[1], strideArray[1], mode1Flat, stride1);
-
-                        const parts: string[] = [];
-                        stride0.forEach((s: number, i: number) => parts.push(`mode0[${i}] × ${s}`));
-                        stride1.forEach((s: number, i: number) => parts.push(`mode1[${i}] × ${s}`));
-                        return `offset = ${parts.join(' + ')}`;
-                      } else {
-                        // 1D: display dim-related formula
-                        return `offset = ${displayInfo?.shapeArr.map((_, i) =>
-                          `dim[${i}] × ${displayInfo.strideArr[i]}`
-                        ).join(' + ')}`;
-                      }
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {gridData.length > 0 && (
@@ -493,22 +427,22 @@ function Layout() {
                   </select>
 
                   {/* Color Legend Preview */}
-                  <div className="flex items-center gap-2 ml-2">
-                    <div
-                      className="h-5 rounded border border-gray-300"
-                      style={{
-                        width: '120px',
-                        background: generateColorGradient(colorScheme)
-                      }}
-                      title={`${minOffset} to ${maxOffset}`}
-                    />
-                    <span className="text-xs text-gray-500 font-mono">
-                      {minOffset} → {maxOffset}
-                    </span>
-                  </div>
+                  <div
+                    className="h-5 rounded border border-gray-300 ml-2"
+                    style={{
+                      width: '120px',
+                      background: generateColorGradient(colorScheme)
+                    }}
+                    title={`Color gradient from ${minOffset} to ${maxOffset}`}
+                  />
                 </div>
               )}
             </div>
+
+            {/* Layout Title */}
+            <h2 className="text-lg font-semibold text-gray-800 mb-3 font-mono text-center">
+              Layout({toDisplayString(parsedLayout?.shape)}:{toDisplayString(parsedLayout?.stride)})
+            </h2>
 
             <div className="inline-block min-w-full">
               {/* Column coordinates */}
