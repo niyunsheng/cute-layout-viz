@@ -19,6 +19,8 @@ function Layout() {
   const [error, setError] = useState('');
   const [hoveredCell, setHoveredCell] = useState<{row: number, col: number} | null>(null);
   const [copied, setCopied] = useState(false);
+  const [heatmapEnabled, setHeatmapEnabled] = useState(true);
+  const [colorScheme, setColorScheme] = useState<'viridis' | 'rainbow' | 'heat' | 'grayscale'>('viridis');
 
   // Parse URL parameters on component mount
   useEffect(() => {
@@ -142,6 +144,214 @@ function Layout() {
     return String(obj);
   };
 
+  // Generate heatmap color based on offset value and color scheme
+  const getHeatmapColor = (offset: number, minOffset: number, maxOffset: number): string => {
+    if (!heatmapEnabled) return '#ffffff';
+    if (maxOffset === minOffset) return 'rgb(255, 255, 200)'; // light yellow for single value
+
+    // Normalize offset to 0-1 range
+    const normalized = (offset - minOffset) / (maxOffset - minOffset);
+    let r: number, g: number, b: number;
+
+    switch (colorScheme) {
+      case 'viridis': {
+        // Viridis: Deep purple -> Blue -> Green -> Yellow (perceptually uniform, colorblind-friendly)
+        if (normalized < 0.25) {
+          const t = normalized / 0.25;
+          r = Math.floor(68 + (59 - 68) * t);
+          g = Math.floor(1 + (82 - 1) * t);
+          b = Math.floor(84 + (139 - 84) * t);
+        } else if (normalized < 0.5) {
+          const t = (normalized - 0.25) / 0.25;
+          r = Math.floor(59 + (33 - 59) * t);
+          g = Math.floor(82 + (145 - 82) * t);
+          b = Math.floor(139 + (140 - 139) * t);
+        } else if (normalized < 0.75) {
+          const t = (normalized - 0.5) / 0.25;
+          r = Math.floor(33 + (94 - 33) * t);
+          g = Math.floor(145 + (201 - 145) * t);
+          b = Math.floor(140 + (98 - 140) * t);
+        } else {
+          const t = (normalized - 0.75) / 0.25;
+          r = Math.floor(94 + (253 - 94) * t);
+          g = Math.floor(201 + (231 - 201) * t);
+          b = Math.floor(98 + (37 - 98) * t);
+        }
+        break;
+      }
+
+      case 'heat': {
+        // Heat: Black -> Red -> Orange -> Yellow -> White
+        if (normalized < 0.25) {
+          const t = normalized / 0.25;
+          r = Math.floor(255 * t);
+          g = 0;
+          b = 0;
+        } else if (normalized < 0.5) {
+          const t = (normalized - 0.25) / 0.25;
+          r = 255;
+          g = Math.floor(165 * t);
+          b = 0;
+        } else if (normalized < 0.75) {
+          const t = (normalized - 0.5) / 0.25;
+          r = 255;
+          g = Math.floor(165 + (255 - 165) * t);
+          b = 0;
+        } else {
+          const t = (normalized - 0.75) / 0.25;
+          r = 255;
+          g = 255;
+          b = Math.floor(255 * t);
+        }
+        break;
+      }
+
+      case 'grayscale': {
+        // Grayscale: Black -> White
+        const intensity = Math.floor(255 * normalized);
+        r = intensity;
+        g = intensity;
+        b = intensity;
+        break;
+      }
+
+      case 'rainbow':
+      default: {
+        // Rainbow: Blue -> Cyan -> Green -> Yellow -> Red
+        if (normalized < 0.25) {
+          const t = normalized / 0.25;
+          r = 0;
+          g = Math.floor(128 + 127 * t);
+          b = 255;
+        } else if (normalized < 0.5) {
+          const t = (normalized - 0.25) / 0.25;
+          r = 0;
+          g = 255;
+          b = Math.floor(255 * (1 - t));
+        } else if (normalized < 0.75) {
+          const t = (normalized - 0.5) / 0.25;
+          r = Math.floor(255 * t);
+          g = 255;
+          b = 0;
+        } else {
+          const t = (normalized - 0.75) / 0.25;
+          r = 255;
+          g = Math.floor(255 * (1 - t));
+          b = 0;
+        }
+        break;
+      }
+    }
+
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
+  // Calculate min and max offsets for heatmap
+  const { minOffset, maxOffset } = useMemo(() => {
+    if (gridData.length === 0) return { minOffset: 0, maxOffset: 0 };
+    const offsets = gridData.map(cell => cell.offset);
+    return {
+      minOffset: Math.min(...offsets),
+      maxOffset: Math.max(...offsets)
+    };
+  }, [gridData]);
+
+  // Generate color gradient for legend preview
+  const generateColorGradient = (scheme: typeof colorScheme): string => {
+    const steps = 20;
+    const colors: string[] = [];
+    for (let i = 0; i < steps; i++) {
+      const normalized = i / (steps - 1);
+      let r: number, g: number, b: number;
+
+      switch (scheme) {
+        case 'viridis':
+          if (normalized < 0.25) {
+            const t = normalized / 0.25;
+            r = Math.floor(68 + (59 - 68) * t);
+            g = Math.floor(1 + (82 - 1) * t);
+            b = Math.floor(84 + (139 - 84) * t);
+          } else if (normalized < 0.5) {
+            const t = (normalized - 0.25) / 0.25;
+            r = Math.floor(59 + (33 - 59) * t);
+            g = Math.floor(82 + (145 - 82) * t);
+            b = Math.floor(139 + (140 - 139) * t);
+          } else if (normalized < 0.75) {
+            const t = (normalized - 0.5) / 0.25;
+            r = Math.floor(33 + (94 - 33) * t);
+            g = Math.floor(145 + (201 - 145) * t);
+            b = Math.floor(140 + (98 - 140) * t);
+          } else {
+            const t = (normalized - 0.75) / 0.25;
+            r = Math.floor(94 + (253 - 94) * t);
+            g = Math.floor(201 + (231 - 201) * t);
+            b = Math.floor(98 + (37 - 98) * t);
+          }
+          break;
+
+        case 'heat':
+          if (normalized < 0.25) {
+            const t = normalized / 0.25;
+            r = Math.floor(255 * t);
+            g = 0;
+            b = 0;
+          } else if (normalized < 0.5) {
+            const t = (normalized - 0.25) / 0.25;
+            r = 255;
+            g = Math.floor(165 * t);
+            b = 0;
+          } else if (normalized < 0.75) {
+            const t = (normalized - 0.5) / 0.25;
+            r = 255;
+            g = Math.floor(165 + (255 - 165) * t);
+            b = 0;
+          } else {
+            const t = (normalized - 0.75) / 0.25;
+            r = 255;
+            g = 255;
+            b = Math.floor(255 * t);
+          }
+          break;
+
+        case 'grayscale':
+          const intensity = Math.floor(255 * normalized);
+          r = intensity;
+          g = intensity;
+          b = intensity;
+          break;
+
+        case 'rainbow':
+        default:
+          if (normalized < 0.25) {
+            const t = normalized / 0.25;
+            r = 0;
+            g = Math.floor(128 + 127 * t);
+            b = 255;
+          } else if (normalized < 0.5) {
+            const t = (normalized - 0.25) / 0.25;
+            r = 0;
+            g = 255;
+            b = Math.floor(255 * (1 - t));
+          } else if (normalized < 0.75) {
+            const t = (normalized - 0.5) / 0.25;
+            r = Math.floor(255 * t);
+            g = 255;
+            b = 0;
+          } else {
+            const t = (normalized - 0.75) / 0.25;
+            r = 255;
+            g = Math.floor(255 * (1 - t));
+            b = 0;
+          }
+          break;
+      }
+
+      colors.push(`rgb(${r}, ${g}, ${b})`);
+    }
+
+    return `linear-gradient(to right, ${colors.join(', ')})`;
+  };
+
   return (
     <div className="max-w-6xl p-0 leading-relaxed text-black">
       <h1 className="text-4xl m-0 text-black mb-6">Layout</h1>
@@ -252,6 +462,54 @@ function Layout() {
 
         {gridData.length > 0 && (
           <div className="bg-white rounded-lg shadow p-4 overflow-x-auto">
+            {/* Visualization Controls */}
+            <div className="mb-4 flex gap-4 items-center flex-wrap pb-4 border-b border-gray-200">
+              {/* Heatmap Toggle */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={heatmapEnabled}
+                  onChange={(e) => setHeatmapEnabled(e.target.checked)}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Heatmap View
+                </span>
+              </label>
+
+              {/* Color Scheme Selector */}
+              {heatmapEnabled && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Color Scheme:</span>
+                  <select
+                    value={colorScheme}
+                    onChange={(e) => setColorScheme(e.target.value as typeof colorScheme)}
+                    className="px-3 py-1.5 border-2 border-gray-300 rounded focus:border-blue-500 focus:outline-none text-sm cursor-pointer"
+                  >
+                    <option value="viridis">Viridis (Recommended)</option>
+                    <option value="rainbow">Rainbow</option>
+                    <option value="heat">Heat</option>
+                    <option value="grayscale">Grayscale</option>
+                  </select>
+
+                  {/* Color Legend Preview */}
+                  <div className="flex items-center gap-2 ml-2">
+                    <div
+                      className="h-5 rounded border border-gray-300"
+                      style={{
+                        width: '120px',
+                        background: generateColorGradient(colorScheme)
+                      }}
+                      title={`${minOffset} to ${maxOffset}`}
+                    />
+                    <span className="text-xs text-gray-500 font-mono">
+                      {minOffset} → {maxOffset}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="inline-block min-w-full">
               {/* Column coordinates */}
               <div className="flex" style={{ marginLeft: rows > 1 ? '50px' : '0' }}>
@@ -310,14 +568,34 @@ function Layout() {
 
                     if (!cell) return null;
 
+                    const bgColor = getHeatmapColor(cell.offset, minOffset, maxOffset);
+                    const isHovered = hoveredCell?.row === cell.row && hoveredCell?.col === cell.col;
+
+                    // Calculate text color based on background brightness for better contrast
+                    const getTextColor = (rgb: string): string => {
+                      if (!heatmapEnabled) return '#000000';
+                      const match = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                      if (!match) return '#000000';
+                      const [, r, g, b] = match.map(Number);
+                      // Calculate relative luminance
+                      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                      return luminance > 0.5 ? '#000000' : '#ffffff';
+                    };
+
                     return (
                       <div
                         key={idx}
-                        className="flex items-center justify-center font-mono text-[11px] cursor-pointer transition-colors bg-white hover:bg-gray-100"
+                        className="flex items-center justify-center font-mono text-[11px] cursor-pointer transition-all"
                         style={{
                           width: '33px',
                           height: '33px',
-                          border: '1px solid #999'
+                          border: '1px solid #999',
+                          backgroundColor: bgColor,
+                          color: getTextColor(bgColor),
+                          fontWeight: isHovered ? 'bold' : 'normal',
+                          transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                          zIndex: isHovered ? 10 : 1,
+                          boxShadow: isHovered ? '0 2px 8px rgba(0,0,0,0.3)' : 'none'
                         }}
                         onMouseEnter={() => setHoveredCell({row: cell.row, col: cell.col})}
                         onMouseLeave={() => setHoveredCell(null)}
