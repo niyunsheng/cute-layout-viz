@@ -10,12 +10,19 @@
 
 ## Tech Stack
 
+### Web Application
 - React 19 + TypeScript
 - React Router
 - Vite
 - GitHub Pages
 
-## Development
+### Python Package
+- Python 3.7+
+- pandas for tabular output
+
+## Quick Start
+
+### Web Application
 
 ```bash
 # Install dependencies
@@ -33,6 +40,14 @@ npm run preview
 # Deploy to GitHub Pages
 npm run deploy
 ```
+
+### Python Package
+
+```bash
+pip install git+https://github.com/niyunsheng/cute-layout-viz.git#subdirectory=python
+```
+
+See [python/README.md](python/README.md) for detailed documentation and usage examples.
 
 ## Related Resources
 
