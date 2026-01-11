@@ -492,3 +492,55 @@ def coalesce_layout(shape, stride):
         return shape_list[0], stride_list[0]
     else:
         return tuple(shape_list), tuple(stride_list)
+
+
+def offset_to_coordinate(offset, shape):
+    """
+    Convert offset to coordinate based on shape
+
+    This function takes a linear offset and converts it back to a coordinate
+    in the same nested format as the input shape. The coordinate represents
+    the position in column-major order.
+
+    Args:
+        offset: int, the linear offset
+        shape: int or nested tuple describing the layout shape
+
+    Returns:
+        Coordinate in the same nested format as shape
+
+    Raises:
+        ValueError: if offset is out of range for the given shape
+
+    Examples:
+        >>> offset_to_coordinate(0, 4)
+        0
+
+        >>> offset_to_coordinate(5, (4, 8))
+        (1, 1)
+
+        >>> offset_to_coordinate(7, (12, (4, 8)))
+        (7, (0, 0))
+
+        >>> offset_to_coordinate(10, ((2, 3), (4, 2)))
+        ((0, 1), (1, 0))
+    """
+    # Calculate total size
+    total_size = count_elements(shape)
+
+    # Validate offset
+    if offset < 0 or offset >= total_size:
+        raise ValueError(
+            f"Offset {offset} is out of range for shape {shape} "
+            f"(valid range: 0 to {total_size - 1})"
+        )
+
+    # Handle scalar shape
+    if isinstance(shape, int):
+        return offset
+
+    # Handle tuple shape
+    # Generate all coordinates and return the one at the offset position
+    coords = generate_coordinates(shape, flat=False)
+    return coords[offset]
+

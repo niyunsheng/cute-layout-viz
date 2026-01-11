@@ -14,6 +14,9 @@ from .layout_visualizer import visualize_layout
 # Composition
 from .composition import composition, composition_by_mode
 
+# Composition Visualization
+from .composition_visualizer import visualize_composition
+
 __all__ = [
     # Core
     'Layout',
@@ -23,6 +26,7 @@ __all__ = [
 
     # Visualization
     'visualize_layout',
+    'visualize_composition',
 
     # Composition
     'composition',

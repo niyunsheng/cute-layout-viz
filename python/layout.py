@@ -8,7 +8,8 @@ from .utils import (
     count_elements,
     generate_coordinates,
     calculate_offset,
-    validate_layout
+    validate_layout,
+    offset_to_coordinate
 )
 
 
@@ -131,3 +132,4 @@ class Layout:
         if not isinstance(other, Layout):
             return False
         return self._shape == other._shape and self._stride == other._stride
+

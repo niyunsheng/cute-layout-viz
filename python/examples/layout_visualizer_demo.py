@@ -5,7 +5,7 @@ This script demonstrates various layout visualizations.
 Run with: python examples/layout_visualizer_demo.py
 """
 
-from cute_layout_viz import visualize_layout
+from cute_layout_viz import Layout, visualize_layout
 
 print("\n" + "=" * 60)
 print("CuTe Layout Visualizer - Demo Examples")
@@ -33,7 +33,8 @@ demos = [
 
 for idx, (description, shape, stride) in enumerate(demos, 1):
     print(f"\n[{idx}] {description}: {shape}:{stride}")
-    visualize_layout(shape, stride)
+    layout = Layout(shape, stride)
+    visualize_layout(layout)
 
 print("=" * 60)
 print("Demo complete!")
