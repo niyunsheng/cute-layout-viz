@@ -272,4 +272,223 @@ def validate_layout(shape, stride):
         for s, st in zip(shape, stride):
             validate_layout(s, st)
 
-    # If we get here, structure is valid
+
+def _unflatten_like(flat_tuple, template):
+    """
+    Unflatten a flat tuple to match the structure of a template.
+
+    This is the inverse of _flatten_nested_tuple. When template is int,
+    returns a single value (not a tuple), matching flatten_layout behavior.
+
+    Args:
+        flat_tuple: tuple or list of values to unflatten
+        template: int or nested tuple defining the target structure
+
+    Returns:
+        int or nested tuple matching template structure
+
+    Raises:
+        ValueError: if flat_tuple length doesn't match template structure
+
+    Examples:
+        >>> _unflatten_like([1, 2], (4, 8))
+        (1, 2)
+
+        >>> _unflatten_like([1, 2, 3, 4], ((2, 2), (2, 2)))
+        ((1, 2), (3, 4))
+
+        >>> _unflatten_like([5], 12)
+        5
+    """
+    # Validate flat_tuple length matches template structure
+    expected_count = len(_flatten_nested_tuple(template))
+    if len(flat_tuple) != expected_count:
+        raise ValueError(
+            f"Flat tuple length {len(flat_tuple)} doesn't match "
+            f"template structure (expected {expected_count} elements)"
+        )
+
+    # Use iterator to consume flat_tuple elements
+    it = iter(flat_tuple)
+
+    def unflatten_recursive(tmpl):
+        if isinstance(tmpl, int):
+            return next(it)
+        return tuple(unflatten_recursive(t) for t in tmpl)
+
+    return unflatten_recursive(template)
+
+
+def divide_layout(shape, stride, divisor):
+    """
+    Divide layout by divisor, producing a new shape and scaled strides.
+
+    Divides the shape and scales the strides simultaneously by progressively
+    dividing from the left and accumulating scaling factors.
+
+    Args:
+        shape: int or tuple of ints
+        stride: int or tuple of ints
+        divisor: int to divide by
+
+    Returns:
+        tuple: (new_shape, new_stride)
+
+    Raises:
+        ValueError: if stride divisibility condition is not satisfied
+
+    Examples:
+        >>> divide_layout((6, 2), (1, 6), 2)
+        ((3, 2), (2, 6))
+
+        >>> divide_layout((6, 2), (1, 6), 3)
+        ((2, 2), (3, 6))
+
+        >>> divide_layout((3, 6, 2, 8), (5, 15, 90, 180), 72)
+        ((1, 1, 1, 4), (360, 360, 360, 360))
+    """
+    flat_shape, flat_stride = flatten_layout(shape, stride)
+
+    def divide_recursive(shapes, strides, remaining_divisor):
+        """
+        Recursively divide flattened shapes and strides.
+
+        Returns: (result_shapes, result_strides)
+        """
+        # Base case: no more shapes
+        if not shapes:
+            if remaining_divisor != 1:
+                raise ValueError(
+                    f"Stride divisibility condition violated: "
+                    f"{remaining_divisor} remaining after dividing all shapes"
+                )
+            return (), ()
+
+        # Base case: divisor fully consumed
+        if remaining_divisor == 1:
+            return shapes, strides
+
+        first_shape, first_stride = shapes[0], strides[0]
+
+        if remaining_divisor <= first_shape:
+            # Current mode absorbs remaining divisor
+            if first_shape % remaining_divisor != 0:
+                raise ValueError(
+                    f"Stride divisibility condition violated: "
+                    f"mode {first_shape} not divisible by {remaining_divisor}"
+                )
+            return (
+                (first_shape // remaining_divisor,) + shapes[1:],
+                (first_stride * remaining_divisor,) + strides[1:]
+            )
+
+        # Current mode completely consumed
+        if remaining_divisor % first_shape != 0:
+            raise ValueError(
+                f"Stride divisibility condition violated: "
+                f"cannot divide {remaining_divisor} by mode of size {first_shape}"
+            )
+
+        # Recurse on rest with reduced divisor
+        rest_shapes, rest_strides = divide_recursive(
+            shapes[1:], strides[1:], remaining_divisor // first_shape
+        )
+
+        # Accumulate residue and return
+        return (
+            (1,) + rest_shapes,
+            (first_stride * remaining_divisor,) + rest_strides
+        )
+
+    result_shape, result_stride = divide_recursive(flat_shape, flat_stride, divisor)
+    return _unflatten_like(result_shape, shape), _unflatten_like(result_stride, stride)
+
+
+def mod_shape(shape, modulus):
+    """
+    Take modulo of shape, progressively from the left.
+
+    This operation keeps the first modulus elements.
+
+    Args:
+        shape: int or tuple of ints
+        modulus: int for modulo
+
+    Returns:
+        int or tuple: resulting shape after modulo
+
+    Examples:
+        >>> mod_shape(6, 2)
+        2
+
+        >>> mod_shape((6, 2), 6)
+        (6, 1)
+
+        >>> mod_shape((3, 6, 2, 8), 6)
+        (3, 2, 1, 1)
+    """
+    flat_shape = _flatten_nested_tuple(shape)
+
+    result_shape = []
+    remaining = modulus
+
+    for s in flat_shape:
+        if remaining >= s:
+            # Keep entire mode
+            result_shape.append(s)
+            remaining //= s
+        elif remaining > 0:
+            # Partially keep this mode
+            result_shape.append(remaining)
+            remaining = 1
+        else:
+            # No more elements to keep
+            result_shape.append(1)
+
+    return _unflatten_like(result_shape, shape)
+
+
+def coalesce_layout(shape, stride):
+    """
+    Simplify layout by removing trailing size-1 modes
+
+    In CuTe, trailing modes of size 1 are typically omitted for simplicity.
+    For example, (3, 1):(8, 2) simplifies to 3:8.
+
+    Args:
+        shape: int or tuple of ints
+        stride: int or tuple of ints (matching structure of shape)
+
+    Returns:
+        tuple: (simplified_shape, simplified_stride)
+
+    Examples:
+        >>> coalesce_layout((3, 1), (8, 2))
+        (3, 8)
+
+        >>> coalesce_layout((5, 1), (16, 4))
+        (5, 16)
+
+        >>> coalesce_layout((2, 2), (24, 2))
+        ((2, 2), (24, 2))
+    """
+    # If already int, return as is
+    if isinstance(shape, int):
+        return shape, stride
+
+    # Convert to list for easier manipulation
+    shape_list = list(shape)
+    stride_list = list(stride)
+
+    # Remove trailing size-1 modes
+    while shape_list and shape_list[-1] == 1:
+        shape_list.pop()
+        stride_list.pop()
+
+    # Return simplified form
+    if len(shape_list) == 0:
+        return 1, 0
+    elif len(shape_list) == 1:
+        return shape_list[0], stride_list[0]
+    else:
+        return tuple(shape_list), tuple(stride_list)

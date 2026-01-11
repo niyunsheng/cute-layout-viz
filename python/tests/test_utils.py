@@ -10,7 +10,9 @@ from cute_layout_viz.utils import (
     count_elements,       # Internal
     generate_coordinates, # Internal
     flatten_coord,        # Internal
-    calculate_offset      # Internal
+    calculate_offset,     # Internal
+    mod_shape,            # Internal
+    divide_layout         # Internal
 )
 
 
@@ -235,3 +237,86 @@ def test_flatten_coord(coord, expected):
 def test_calculate_offset(coords, strides, expected):
     """Test internal calculate_offset function with both flattened and nested inputs"""
     assert calculate_offset(coords, strides) == expected
+
+
+# ============================================================================
+# Internal: mod_shape
+# ============================================================================
+
+@pytest.mark.parametrize("shape,modulus,expected_shape", [
+    # Simple integer modulo
+    (12, 5, 5),
+    (12, 8, 8),
+    (12, 12, 12),
+    (12, 20, 12),  # modulus > shape, keeps entire shape
+    (6, 2, 2),
+
+    # Tuple modulo - (6,2) examples
+    ((6, 2), 2, (2, 1)),
+    ((6, 2), 3, (3, 1)),
+    ((6, 2), 6, (6, 1)),
+    ((6, 2), 12, (6, 2)),
+
+    # Multimodal modulo - (3,6,2,8) examples
+    ((3, 6, 2, 8), 6, (3, 2, 1, 1)),
+    ((3, 6, 2, 8), 9, (3, 3, 1, 1)),
+
+    # (1,2,2,8) examples
+    ((1, 2, 2, 8), 2, (1, 2, 1, 1)),
+    ((1, 2, 2, 8), 16, (1, 2, 2, 4)),
+])
+def test_mod_shape(shape, modulus, expected_shape):
+    """Test internal mod_shape function"""
+    result_shape = mod_shape(shape, modulus)
+    assert result_shape == expected_shape
+
+
+# ============================================================================
+# Internal: divide_layout
+# ============================================================================
+
+@pytest.mark.parametrize("shape,stride,divisor,expected_shape,expected_stride", [
+    # Simple integer division
+    (12, 1, 2, 6, 2),
+    (12, 1, 3, 4, 3),
+    (12, 2, 4, 3, 8),
+
+    # Tuple division - (6,2) examples from documentation
+    ((6, 2), (1, 6), 2, (3, 2), (2, 6)),
+    ((6, 2), (1, 6), 3, (2, 2), (3, 6)),
+    ((6, 2), (1, 6), 6, (1, 2), (6, 6)),
+    ((6, 2), (1, 6), 12, (1, 1), (12, 12)),
+
+    # Multimodal division - (3,6,2,8) examples from documentation
+    ((3, 6, 2, 8), (5, 15, 90, 180), 3, (1, 6, 2, 8), (15, 15, 90, 180)),
+    ((3, 6, 2, 8), (5, 15, 90, 180), 6, (1, 3, 2, 8), (30, 30, 90, 180)),
+    ((3, 6, 2, 8), (5, 15, 90, 180), 9, (1, 2, 2, 8), (45, 45, 90, 180)),
+    ((3, 6, 2, 8), (5, 15, 90, 180), 72, (1, 1, 1, 4), (360, 360, 360, 360)),
+
+    # Division by 1 should return equivalent layout
+    ((6, 2), (1, 6), 1, (6, 2), (1, 6))
+])
+def test_divide_layout(shape, stride, divisor, expected_shape, expected_stride):
+    """Test internal divide_layout function"""
+    result_shape, result_stride = divide_layout(shape, stride, divisor)
+    assert result_shape == expected_shape
+    assert result_stride == expected_stride
+
+
+@pytest.mark.parametrize("shape,stride,divisor", [
+    # Divisibility violations
+    (12, 1, 5),
+    (12, 1, 7),
+    ((6, 2), (1, 6), 5),
+    ((6, 2), (1, 6), 7),
+    ((3, 6, 2, 8), (5, 15, 90, 180), 5),
+
+    # Divisor larger than shape
+    (12, 1, 20),
+    (6, 1, 10),
+    ((6, 2), (1, 6), 20),
+])
+def test_divide_layout_violations(shape, stride, divisor):
+    """Test that divide_layout raises ValueError for invalid divisors"""
+    with pytest.raises(ValueError, match="Stride divisibility condition violated"):
+        divide_layout(shape, stride, divisor)
