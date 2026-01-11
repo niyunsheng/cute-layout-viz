@@ -28,7 +28,7 @@ function Home() {
                 <span>Layout Visualization</span>
               </li>
               <li className="flex items-center gap-2">
-                <input type="checkbox" disabled className="w-4 h-4" />
+                <input type="checkbox" checked disabled className="w-4 h-4" />
                 <span>Composition</span>
               </li>
               <li className="flex items-center gap-2">
