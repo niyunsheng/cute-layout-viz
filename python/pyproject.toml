@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cute-layout-viz"
+version = "0.1.0"
+description = "CUTLASS 4.0 CuTe Layout visualization tools"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "Yunsheng Ni", email = "yunshengn@gmail.com"}
+]
+keywords = ["cutlass", "cuda", "layout", "visualization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+
+dependencies = [
+    "pandas>=1.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/niyunsheng/cute-layout-viz"
+Repository = "https://github.com/niyunsheng/cute-layout-viz"
+
+[tool.setuptools]
+packages = ["cute_layout_viz"]
+package-dir = {"cute_layout_viz" = "."}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v"
