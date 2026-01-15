@@ -1,11 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   parseLayoutString,
   calculateOffset,
   composition,
   offsetToCoordinate
-} from '../utils';
+} from '../bridge';
 import { generateLayoutGrid, toDisplayString } from '../utils/gridUtils';
 import { type ColorScheme } from '../utils/heatmapUtils';
 import HeatmapControls from '../components/HeatmapControls';
@@ -34,6 +34,10 @@ function Composition() {
   const [copied, setCopied] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
   const [colorScheme, setColorScheme] = useState<ColorScheme>('viridis');
+  const [layoutA, setLayoutA] = useState<any>({ gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] });
+  const [layoutB, setLayoutB] = useState<any>({ gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] });
+  const [layoutResult, setLayoutResult] = useState<any>({ gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] });
+  const [layoutBCoords, setLayoutBCoords] = useState<any[]>([]);
 
   // Refs for SVG positioning
   const layoutARefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -53,50 +57,52 @@ function Composition() {
   }, [searchParams]);
 
   // Generate layout grids and composition result
-  const { layoutA, layoutB, layoutResult, layoutBCoords } = useMemo(() => {
-    try {
-      setError('');
+  useEffect(() => {
+    const calculateLayouts = async () => {
+      try {
+        setError('');
 
-      // Parse Layout A
-      const parsedA = parseLayoutString(layoutAInput);
-      const gridA = generateLayoutGrid(parsedA.shape, parsedA.stride);
+        // Parse Layout A
+        const parsedA = await parseLayoutString(layoutAInput);
+        const gridA = await generateLayoutGrid(parsedA.shape, parsedA.stride);
 
-      // Parse Layout B
-      const parsedB = parseLayoutString(layoutBInput);
-      const gridB = generateLayoutGrid(parsedB.shape, parsedB.stride);
+        // Parse Layout B
+        const parsedB = await parseLayoutString(layoutBInput);
+        const gridB = await generateLayoutGrid(parsedB.shape, parsedB.stride);
 
-      // Calculate composition: A ∘ B
-      const resultComposition = composition(
-        parsedA.shape,
-        parsedA.stride,
-        parsedB.shape,
-        parsedB.stride
-      );
+        // Calculate composition: A ∘ B
+        const resultComposition = await composition(
+          parsedA.shape,
+          parsedA.stride,
+          parsedB.shape,
+          parsedB.stride
+        );
 
-      // Generate result layout grid
-      const gridResult = generateLayoutGrid(resultComposition.shape, resultComposition.stride);
+        // Generate result layout grid
+        const gridResult = await generateLayoutGrid(resultComposition.shape, resultComposition.stride);
 
-      // For Layout B, calculate the coordinates in A's shape
-      const bCoordsInA = gridB.gridData.map(cell => {
-        const coordInA = offsetToCoordinate(cell.offset, parsedA.shape);
-        return coordInA;
-      });
+        // For Layout B, calculate the coordinates in A's shape
+        const bCoordsInA = await Promise.all(
+          gridB.gridData.map(async (cell) => {
+            const coordInA = await offsetToCoordinate(cell.offset, parsedA.shape);
+            return coordInA;
+          })
+        );
 
-      return {
-        layoutA: gridA,
-        layoutB: gridB,
-        layoutResult: gridResult,
-        layoutBCoords: bCoordsInA
-      };
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
-      return {
-        layoutA: { gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] },
-        layoutB: { gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] },
-        layoutResult: { gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] },
-        layoutBCoords: []
-      };
-    }
+        setLayoutA(gridA);
+        setLayoutB(gridB);
+        setLayoutResult(gridResult);
+        setLayoutBCoords(bCoordsInA);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+        setLayoutA({ gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] });
+        setLayoutB({ gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] });
+        setLayoutResult({ gridData: [], rows: 0, cols: 0, parsedLayout: null, colCoords: [], rowCoords: [] });
+        setLayoutBCoords([]);
+      }
+    };
+
+    calculateLayouts();
   }, [layoutAInput, layoutBInput]);
 
   // Set default hovered cell (middle element of Layout B)
@@ -109,76 +115,94 @@ function Composition() {
   }, [layoutB.gridData, hoveredBCell]);
 
   // Calculate min and max offsets for heatmap (across all layouts)
-  const { minOffset, maxOffset } = useMemo(() => {
+  const [minOffset, setMinOffset] = useState(0);
+  const [maxOffset, setMaxOffset] = useState(0);
+
+  useEffect(() => {
     const allOffsets = [
-      ...layoutA.gridData.map(cell => cell.offset),
-      ...layoutB.gridData.map(cell => cell.offset),
-      ...layoutResult.gridData.map(cell => cell.offset)
+      ...layoutA.gridData.map((cell: any) => cell.offset),
+      ...layoutB.gridData.map((cell: any) => cell.offset),
+      ...layoutResult.gridData.map((cell: any) => cell.offset)
     ];
 
-    if (allOffsets.length === 0) return { minOffset: 0, maxOffset: 0 };
-
-    return {
-      minOffset: Math.min(...allOffsets),
-      maxOffset: Math.max(...allOffsets)
-    };
+    if (allOffsets.length === 0) {
+      setMinOffset(0);
+      setMaxOffset(0);
+    } else {
+      setMinOffset(Math.min(...allOffsets));
+      setMaxOffset(Math.max(...allOffsets));
+    }
   }, [layoutA.gridData, layoutB.gridData, layoutResult.gridData]);
 
   // Calculate connection line for hovered B cell
-  const connectionLines = useMemo(() => {
-    const lines: ConnectionLine[] = [];
+  const [connectionLines, setConnectionLines] = useState<ConnectionLine[]>([]);
 
-    // Connection from Layout B to Layout A
-    if (hoveredBCell && layoutB.gridData.length > 0 && layoutA.gridData.length > 0) {
-      const bCell = layoutB.gridData[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
-      if (bCell) {
-        const coordInA = layoutBCoords[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
-        if (coordInA !== undefined) {
-          // Find matching cell in Layout A by offset
-          const targetOffset = calculateOffset(coordInA, layoutA.parsedLayout?.stride || 0);
-          const aCell = layoutA.gridData.find(cell => cell.offset === targetOffset);
+  useEffect(() => {
+    const calculateConnectionLines = async () => {
+      const lines: ConnectionLine[] = [];
 
-          if (aCell) {
-            lines.push({
-              fromLayoutIdx: 1,
-              fromRow: bCell.row,
-              fromCol: bCell.col,
-              toRow: aCell.row,
-              toCol: aCell.col
-            });
+      // Connection from Layout B to Layout A
+      if (hoveredBCell && layoutB.gridData.length > 0 && layoutA.gridData.length > 0) {
+        const bCell = layoutB.gridData[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
+        if (bCell) {
+          const coordInA = layoutBCoords[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
+          if (coordInA !== undefined) {
+            // Find matching cell in Layout A by offset
+            const targetOffset = await calculateOffset(coordInA, layoutA.parsedLayout?.stride || 0);
+            const aCell = layoutA.gridData.find((cell: any) => cell.offset === targetOffset);
+
+            if (aCell) {
+              lines.push({
+                fromLayoutIdx: 1,
+                fromRow: bCell.row,
+                fromCol: bCell.col,
+                toRow: aCell.row,
+                toCol: aCell.col
+              });
+            }
           }
         }
       }
-    }
 
-    return lines;
+      setConnectionLines(lines);
+    };
+
+    calculateConnectionLines();
   }, [hoveredBCell, layoutA, layoutB, layoutBCoords]);
 
   // Compute highlighted cells
-  const highlightedCellsA = useMemo(() => {
-    const set = new Set<string>();
-    if (hoveredBCell && layoutB.gridData.length > 0) {
-      const bCell = layoutB.gridData[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
-      if (bCell) {
-        const coordInA = layoutBCoords[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
-        if (coordInA !== undefined) {
-          const targetOffset = calculateOffset(coordInA, layoutA.parsedLayout?.stride || 0);
-          const aCell = layoutA.gridData.find(cell => cell.offset === targetOffset);
-          if (aCell) {
-            set.add(`${aCell.row},${aCell.col}`);
+  const [highlightedCellsA, setHighlightedCellsA] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const calculateHighlightedCells = async () => {
+      const set = new Set<string>();
+      if (hoveredBCell && layoutB.gridData.length > 0) {
+        const bCell = layoutB.gridData[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
+        if (bCell) {
+          const coordInA = layoutBCoords[hoveredBCell.row * layoutB.cols + hoveredBCell.col];
+          if (coordInA !== undefined) {
+            const targetOffset = await calculateOffset(coordInA, layoutA.parsedLayout?.stride || 0);
+            const aCell = layoutA.gridData.find((cell: any) => cell.offset === targetOffset);
+            if (aCell) {
+              set.add(`${aCell.row},${aCell.col}`);
+            }
           }
         }
       }
-    }
-    return set;
+      setHighlightedCellsA(set);
+    };
+
+    calculateHighlightedCells();
   }, [hoveredBCell, layoutA, layoutB, layoutBCoords]);
 
-  const highlightedCellsResult = useMemo(() => {
+  const [highlightedCellsResult, setHighlightedCellsResult] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
     const set = new Set<string>();
     if (hoveredBCell) {
       set.add(`${hoveredBCell.row},${hoveredBCell.col}`);
     }
-    return set;
+    setHighlightedCellsResult(set);
   }, [hoveredBCell]);
 
   // Render SVG connection lines

@@ -138,6 +138,7 @@ function Navbar({ isCollapsed, setIsCollapsed }: NavbarProps) {
           >
             Bank Conflict
           </Link>
+
         </nav>
       </aside>
       <button

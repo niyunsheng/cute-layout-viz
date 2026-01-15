@@ -1,15 +1,15 @@
 /**
  * Grid utilities for layout visualization
  * Shared functions used across Layout and Composition pages
+ * All calculations are delegated to Python via Pyodide
  */
 
 import {
-  type LayoutValue,
   countElements,
   generateCoordinates,
   calculateOffset,
-  formatCoord
-} from './index';
+} from '../bridge';
+import type { LayoutValue } from '../bridge';
 
 export interface CellData {
   row: number;
@@ -28,13 +28,28 @@ export interface LayoutGridData {
 }
 
 /**
+ * Format coordinate as string for display
+ */
+function formatCoord(coord: LayoutValue): string {
+  if (typeof coord === 'number') {
+    return String(coord);
+  }
+  const isSimpleArray = coord.every((c) => typeof c === 'number');
+  if (isSimpleArray) {
+    return `(${coord.join(',')})`;
+  }
+  return `(${coord.map(formatCoord).join(',')})`;
+}
+
+/**
  * Generate grid data from a parsed layout
  * This is the core function used by both Layout and Composition pages
+ * Uses Python for all calculations via Pyodide
  */
-export function generateLayoutGrid(
+export async function generateLayoutGrid(
   shape: LayoutValue,
   stride: LayoutValue
-): LayoutGridData {
+): Promise<LayoutGridData> {
   // Validate shape and stride
   const validateValues = (val: LayoutValue, name: string): void => {
     if (typeof val === 'number') {
@@ -63,17 +78,18 @@ export function generateLayoutGrid(
     const mode0Stride = stride[0];
     const mode1Stride = stride[1];
 
-    r = countElements(mode0Shape);
-    c = countElements(mode1Shape);
+    // Use Python for calculations
+    r = await countElements(mode0Shape);
+    c = await countElements(mode1Shape);
 
     // Generate coordinates separately for mode0 and mode1
-    const mode0Coords = generateCoordinates(mode0Shape);
-    const mode1Coords = generateCoordinates(mode1Shape);
+    const mode0Coords = await generateCoordinates(mode0Shape);
+    const mode1Coords = await generateCoordinates(mode1Shape);
 
     // Build grid with nested loops
     for (let rowIdx = 0; rowIdx < mode0Coords.length; rowIdx++) {
       const mode0Coord = mode0Coords[rowIdx];
-      const offset0 = calculateOffset(mode0Coord, mode0Stride);
+      const offset0 = await calculateOffset(mode0Coord, mode0Stride);
 
       if (rowCoordsArray.length < r) {
         rowCoordsArray.push(formatCoord(mode0Coord));
@@ -81,7 +97,7 @@ export function generateLayoutGrid(
 
       for (let colIdx = 0; colIdx < mode1Coords.length; colIdx++) {
         const mode1Coord = mode1Coords[colIdx];
-        const offset1 = calculateOffset(mode1Coord, mode1Stride);
+        const offset1 = await calculateOffset(mode1Coord, mode1Stride);
         const offset = offset0 + offset1;
 
         if (rowIdx === 0 && colCoordsArray.length < c) {
@@ -94,12 +110,12 @@ export function generateLayoutGrid(
   } else {
     // 1D or 3+D layout: expand as single row
     r = 1;
-    const coords = generateCoordinates(shape);
+    const coords = await generateCoordinates(shape);
     c = coords.length;
 
     for (let i = 0; i < coords.length; i++) {
       const coord = coords[i];
-      const offset = calculateOffset(coord, stride);
+      const offset = await calculateOffset(coord, stride);
 
       colCoordsArray.push(formatCoord(coord));
       data.push({ row: 0, col: i, offset, coords: coord });
@@ -124,14 +140,4 @@ export function toDisplayString(obj: any): string {
     return `(${obj.map(toDisplayString).join(',')})`;
   }
   return String(obj);
-}
-
-/**
- * Format LayoutValue to string for layout input/output
- */
-export function formatLayoutValue(val: LayoutValue): string {
-  if (typeof val === 'number') {
-    return String(val);
-  }
-  return `(${val.map(formatLayoutValue).join(',')})`;
 }

@@ -11,9 +11,8 @@
 ## Tech Stack
 
 ### Web Application
-- React 19 + TypeScript
-- React Router
-- Vite
+- React 19 + TypeScript + Vite
+- Pyodide (Python in WebAssembly)
 - GitHub Pages
 
 ### Python Package

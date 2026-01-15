@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { parseLayoutString, Layout as LayoutClass } from '../utils';
+import { parseLayoutString } from '../bridge';
 import { generateLayoutGrid, toDisplayString } from '../utils/gridUtils';
 import HeatmapControls from '../components/HeatmapControls';
 import LayoutGrid from '../components/LayoutGrid';
@@ -17,6 +17,16 @@ function Layout() {
   const [copied, setCopied] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
   const [colorScheme, setColorScheme] = useState<ColorScheme>('viridis');
+  const [gridData, setGridData] = useState<any>({
+    gridData: [],
+    rows: 0,
+    cols: 0,
+    parsedLayout: null,
+    colCoords: [],
+    rowCoords: []
+  });
+  const [minOffset, setMinOffset] = useState(0);
+  const [maxOffset, setMaxOffset] = useState(0);
 
   // Parse URL parameters on component mount
   useEffect(() => {
@@ -27,46 +37,42 @@ function Layout() {
     }
   }, [searchParams]);
 
-  const gridData = useMemo(() => {
-    try {
-      const parsed = parseLayoutString(layoutInput);
-      setError('');
+  // Parse and generate grid data
+  useEffect(() => {
+    const calculateGrid = async () => {
+      try {
+        const parsed = await parseLayoutString(layoutInput);
+        setError('');
 
-      // Create Layout instance and validate
-      const layout = new LayoutClass(parsed.shape, parsed.stride);
-      const { shape: shapeArr, stride: strideArr } = layout.flatten();
+        const grid = await generateLayoutGrid(parsed.shape, parsed.stride);
+        setGridData(grid);
 
-      if (shapeArr.some(s => isNaN(s) || s <= 0)) {
-        throw new Error('Shape must be positive integers');
+        // Calculate min and max offsets for heatmap
+        if (grid.gridData.length > 0) {
+          const offsets = grid.gridData.map((cell: any) => cell.offset);
+          setMinOffset(Math.min(...offsets));
+          setMaxOffset(Math.max(...offsets));
+        } else {
+          setMinOffset(0);
+          setMaxOffset(0);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+        setGridData({
+          gridData: [],
+          rows: 0,
+          cols: 0,
+          parsedLayout: null,
+          colCoords: [],
+          rowCoords: []
+        });
+        setMinOffset(0);
+        setMaxOffset(0);
       }
-
-      if (strideArr.some(s => isNaN(s))) {
-        throw new Error('Stride must be integers');
-      }
-
-      return generateLayoutGrid(parsed.shape, parsed.stride);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
-      return {
-        gridData: [],
-        rows: 0,
-        cols: 0,
-        parsedLayout: null,
-        colCoords: [],
-        rowCoords: []
-      };
-    }
-  }, [layoutInput]);
-
-  // Calculate min and max offsets for heatmap
-  const { minOffset, maxOffset } = useMemo(() => {
-    if (gridData.gridData.length === 0) return { minOffset: 0, maxOffset: 0 };
-    const offsets = gridData.gridData.map(cell => cell.offset);
-    return {
-      minOffset: Math.min(...offsets),
-      maxOffset: Math.max(...offsets)
     };
-  }, [gridData.gridData]);
+
+    calculateGrid();
+  }, [layoutInput]);
 
   return (
     <div className="max-w-6xl p-0 leading-relaxed text-black">
