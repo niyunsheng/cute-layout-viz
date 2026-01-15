@@ -1,0 +1,1 @@
+import{j as e}from"./index-CyG5ptUr.js";function l(){return e.jsxs("div",{className:"max-w-6xl p-0 leading-relaxed text-black",children:[e.jsx("h1",{className:"text-4xl m-0 text-black",children:"Complement"}),e.jsx("p",{className:"text-xl text-gray-600 mt-4",children:"Coming Soon..."})]})}export{l as default};
