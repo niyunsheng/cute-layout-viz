@@ -212,3 +212,35 @@ count_elements(${shapePy})
     throw new Error(`Failed to count elements: ${error}`);
   }
 }
+
+/**
+ * Get offset to coordinate list for a layout
+ *
+ * @param shape - Shape tuple
+ * @param stride - Stride tuple
+ * @returns Array where index=offset, value=coordinate (or null)
+ */
+export async function offsetToCoordList(
+  shape: LayoutValue,
+  stride: LayoutValue
+): Promise<(LayoutValue | null)[]> {
+  await initPyodide();
+  const pyodide = getPyodide();
+
+  try {
+    const shapePy = layoutValueToPython(shape);
+    const stridePy = layoutValueToPython(stride);
+
+    const result = pyodide.runPython(`
+from cute_layout.layout import Layout
+import json
+layout = Layout(${shapePy}, ${stridePy})
+coord_list = layout.offset_to_coord_list()
+json.dumps(coord_list)
+    `);
+
+    return JSON.parse(result);
+  } catch (error) {
+    throw new Error(`Failed to get offset to coord list: ${error}`);
+  }
+}

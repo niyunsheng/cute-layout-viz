@@ -17,8 +17,8 @@ def visualize_layout(layout: Layout, coord_shape=None):
         >>> visualize_layout(layout)  # Shows offsets
         >>> visualize_layout(layout, coord_shape=(4, 8))  # Shows coordinates in (4, 8)
     """
-    # Build offset grid
-    offset_grid, is_2d, mode0_coords, mode1_coords, coords_list = build_offset_grid(layout)
+    # Build offset grid and get offset to coordinate mapping
+    offset_grid, is_2d, mode0_coords, mode1_coords, coords_list, offset_to_coord_list = build_offset_grid(layout)
 
     # If coord_shape is provided, convert offsets to coordinates
     if coord_shape is not None:
@@ -31,5 +31,5 @@ def visualize_layout(layout: Layout, coord_shape=None):
         offset_grid = [[convert_offset(offset) for offset in row] for row in offset_grid]
 
     # Print layout with leading newline
-    print_grid(layout, offset_grid, is_2d, mode0_coords, mode1_coords, coords_list)
+    print_grid(layout, offset_grid, is_2d, mode0_coords, mode1_coords, coords_list, offset_to_coord_list)
     print()

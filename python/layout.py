@@ -123,6 +123,37 @@ class Layout:
         """
         return calculate_offset(coords, self._stride)
 
+    def offset_to_coord_list(self):
+        """
+        Build a list where index=offset, value=coordinate.
+
+        Returns a list mapping each offset to its corresponding coordinate.
+        If an offset has no coordinate (gap in memory), the value is None.
+
+        Returns:
+            list: list where index is offset and value is coordinate tuple (or None)
+
+        Examples:
+            >>> layout = Layout((4, 8), (1, 4))
+            >>> coord_list = layout.offset_to_coord_list()
+            >>> coord_list[0]  # offset 0 -> coordinate
+            (0, 0)
+            >>> coord_list[5]  # offset 5 -> coordinate
+            (1, 1)
+        """
+        coords = self.coordinates()
+        offset_coord_map = {}
+
+        for coord in coords:
+            off = self.offset(coord)
+            offset_coord_map[off] = coord
+
+        if not offset_coord_map:
+            return []
+
+        max_offset = max(offset_coord_map.keys())
+        return [offset_coord_map.get(i) for i in range(max_offset + 1)]
+
     def __repr__(self):
         """String representation of the layout"""
         return f"Layout({self._shape}:{self._stride})"

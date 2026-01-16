@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { parseLayoutString } from '../bridge';
 import { generateLayoutGrid, toDisplayString } from '../utils/gridUtils';
 import HeatmapControls from '../components/HeatmapControls';
 import LayoutGrid from '../components/LayoutGrid';
+import OffsetCoordList from '../components/OffsetCoordList';
 import { type ColorScheme } from '../utils/heatmapUtils';
 
 function Layout() {
@@ -14,6 +15,7 @@ function Layout() {
   });
   const [error, setError] = useState('');
   const [hoveredCell, setHoveredCell] = useState<{row: number, col: number} | null>(null);
+  const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(true);
   const [colorScheme, setColorScheme] = useState<ColorScheme>('viridis');
@@ -23,10 +25,13 @@ function Layout() {
     cols: 0,
     parsedLayout: null,
     colCoords: [],
-    rowCoords: []
+    rowCoords: [],
+    offsetToCoordList: []
   });
   const [minOffset, setMinOffset] = useState(0);
   const [maxOffset, setMaxOffset] = useState(0);
+  const cellRefsByOffset = useRef<Map<number, HTMLDivElement | null>>(new Map());
+  const listItemRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
 
   // Parse URL parameters on component mount
   useEffect(() => {
@@ -56,6 +61,10 @@ function Layout() {
           setMinOffset(0);
           setMaxOffset(0);
         }
+
+        // Clear refs when grid changes
+        cellRefsByOffset.current.clear();
+        listItemRefs.current.clear();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unknown error');
         setGridData({
@@ -64,7 +73,8 @@ function Layout() {
           cols: 0,
           parsedLayout: null,
           colCoords: [],
-          rowCoords: []
+          rowCoords: [],
+          offsetToCoordList: []
         });
         setMinOffset(0);
         setMaxOffset(0);
@@ -133,13 +143,27 @@ function Layout() {
               grid={gridData}
               title={`Layout(${toDisplayString(gridData.parsedLayout?.shape)}:${toDisplayString(gridData.parsedLayout?.stride)})`}
               hoveredCell={hoveredCell}
+              hoveredOffset={hoveredOffset}
               onCellHover={(row, col) => setHoveredCell({ row, col })}
               onCellLeave={() => setHoveredCell(null)}
+              onOffsetHover={setHoveredOffset}
+              cellRefsByOffset={cellRefsByOffset}
               heatmapEnabled={heatmapEnabled}
               colorScheme={colorScheme}
               minOffset={minOffset}
               maxOffset={maxOffset}
             />
+
+            {/* Offset to Coordinate List */}
+            <div className="mt-4">
+              <OffsetCoordList
+                offsetToCoordList={gridData.offsetToCoordList}
+                hoveredOffset={hoveredOffset}
+                onOffsetHover={setHoveredOffset}
+                gridCellRefs={cellRefsByOffset}
+                listItemRefs={listItemRefs}
+              />
+            </div>
           </div>
         )}
       </div>

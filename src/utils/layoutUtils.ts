@@ -12,26 +12,51 @@ export type { LayoutValue } from '../bridge/types';
 import type { LayoutValue } from '../bridge/types';
 
 /**
- * Format coordinate as string for display
+ * Unwrap single-element array to its inner value for display.
+ * Recursively handles nested arrays.
+ *
+ * @example
+ * ```ts
+ * unwrapSingleArray([0])           // Returns: 0
+ * unwrapSingleArray([0, 1])        // Returns: [0, 1]
+ * unwrapSingleArray([[0], [1]])    // Returns: [0, 1]
+ * ```
+ */
+export function unwrapSingleArray(coord: LayoutValue): LayoutValue {
+  if (typeof coord === 'number') {
+    return coord;
+  }
+  if (coord.length === 1) {
+    return unwrapSingleArray(coord[0]);
+  }
+  // Recursively unwrap each element
+  return coord.map(unwrapSingleArray);
+}
+
+/**
+ * Format coordinate as string for display.
+ * Uses unwrapSingleArray to handle single-element arrays.
  *
  * @example
  * ```ts
  * formatCoord(5)              // Returns: "5"
  * formatCoord([1, 2])         // Returns: "(1,2)"
  * formatCoord([5, [2, 3]])    // Returns: "(5,(2,3))"
+ * formatCoord([[0], [1]])     // Returns: "(0,1)"
  * ```
  */
 export function formatCoord(coord: LayoutValue): string {
-  if (typeof coord === 'number') {
-    return String(coord);
+  const unwrapped = unwrapSingleArray(coord);
+  if (typeof unwrapped === 'number') {
+    return String(unwrapped);
   }
 
   // Check if this is a simple array (all numbers)
-  const isSimpleArray = coord.every((c) => typeof c === 'number');
+  const isSimpleArray = unwrapped.every((c) => typeof c === 'number');
   if (isSimpleArray) {
-    return `(${coord.join(',')})`;
+    return `(${unwrapped.join(',')})`;
   }
 
   // Nested array
-  return `(${coord.map(formatCoord).join(',')})`;
+  return `(${unwrapped.map(formatCoord).join(',')})`;
 }

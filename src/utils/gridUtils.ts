@@ -8,8 +8,10 @@ import {
   countElements,
   generateCoordinates,
   calculateOffset,
+  offsetToCoordList as pyOffsetToCoordList,
 } from '../bridge';
 import type { LayoutValue } from '../bridge';
+import { formatCoord } from './layoutUtils';
 
 export interface CellData {
   row: number;
@@ -25,20 +27,7 @@ export interface LayoutGridData {
   parsedLayout: { shape: LayoutValue; stride: LayoutValue } | null;
   colCoords: string[];
   rowCoords: string[];
-}
-
-/**
- * Format coordinate as string for display
- */
-function formatCoord(coord: LayoutValue): string {
-  if (typeof coord === 'number') {
-    return String(coord);
-  }
-  const isSimpleArray = coord.every((c) => typeof c === 'number');
-  if (isSimpleArray) {
-    return `(${coord.join(',')})`;
-  }
-  return `(${coord.map(formatCoord).join(',')})`;
+  offsetToCoordList: (LayoutValue | null)[];  // index=offset, value=coordinate (or null)
 }
 
 /**
@@ -104,7 +93,8 @@ export async function generateLayoutGrid(
           colCoordsArray.push(formatCoord(mode1Coord));
         }
 
-        data.push({ row: rowIdx, col: colIdx, offset, coords: [mode0Coord, mode1Coord] });
+        const combinedCoord: LayoutValue = [mode0Coord, mode1Coord];
+        data.push({ row: rowIdx, col: colIdx, offset, coords: combinedCoord });
       }
     }
   } else {
@@ -122,13 +112,17 @@ export async function generateLayoutGrid(
     }
   }
 
+  // Use Python's Layout.offset_to_coord_list() method
+  const offsetToCoordList = await pyOffsetToCoordList(shape, stride);
+
   return {
     gridData: data,
     rows: r,
     cols: c,
     parsedLayout: { shape, stride },
     colCoords: colCoordsArray,
-    rowCoords: rowCoordsArray
+    rowCoords: rowCoordsArray,
+    offsetToCoordList
   };
 }
 

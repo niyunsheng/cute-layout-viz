@@ -13,10 +13,13 @@ interface LayoutGridProps {
   title: string;
   showCoords?: LayoutValue[];
   hoveredCell?: { row: number; col: number } | null;
+  hoveredOffset?: number | null;  // Highlight cell by offset
   highlightedCells?: Set<string>; // Set of "row,col" strings
   onCellHover?: (row: number, col: number) => void;
   onCellLeave?: () => void;
-  cellRefs?: React.MutableRefObject<(HTMLDivElement | null)[]>;
+  onOffsetHover?: (offset: number | null) => void;  // New: for bidirectional hover
+  cellRefs?: React.RefObject<(HTMLDivElement | null)[]>;
+  cellRefsByOffset?: React.RefObject<Map<number, HTMLDivElement | null>>;
   heatmapEnabled?: boolean;
   colorScheme?: ColorScheme;
   minOffset?: number;
@@ -28,10 +31,13 @@ const LayoutGrid = forwardRef<HTMLDivElement, LayoutGridProps>(({
   title,
   showCoords,
   hoveredCell = null,
+  hoveredOffset = null,
   highlightedCells = new Set(),
   onCellHover,
   onCellLeave,
+  onOffsetHover,
   cellRefs,
+  cellRefsByOffset,
   heatmapEnabled = false,
   colorScheme = 'viridis',
   minOffset = 0,
@@ -104,6 +110,7 @@ const LayoutGrid = forwardRef<HTMLDivElement, LayoutGridProps>(({
               if (!cell) return null;
 
               const isHovered = hoveredCell?.row === cell.row && hoveredCell?.col === cell.col;
+              const isHoveredByOffset = hoveredOffset !== null && cell.offset === hoveredOffset;
               const isHighlighted = highlightedCells.has(`${cell.row},${cell.col}`);
 
               const displayValue = showCoords && showCoords[idx] !== undefined
@@ -113,7 +120,7 @@ const LayoutGrid = forwardRef<HTMLDivElement, LayoutGridProps>(({
               // Calculate colors
               const bgColor = heatmapEnabled
                 ? getHeatmapColor(cell.offset, minOffset, maxOffset, colorScheme, true)
-                : isHovered ? '#dbeafe' : isHighlighted ? '#fef08a' : '#ffffff';
+                : isHovered || isHoveredByOffset ? '#dbeafe' : isHighlighted ? '#fef08a' : '#ffffff';
 
               const textColor = heatmapEnabled
                 ? getTextColor(bgColor, true)
@@ -123,24 +130,33 @@ const LayoutGrid = forwardRef<HTMLDivElement, LayoutGridProps>(({
                 <div
                   key={idx}
                   ref={(el) => {
-                    if (cellRefs) {
+                    if (cellRefs?.current) {
                       cellRefs.current[idx] = el;
+                    }
+                    if (cellRefsByOffset?.current) {
+                      cellRefsByOffset.current.set(cell.offset, el);
                     }
                   }}
                   className="flex items-center justify-center font-mono text-[11px] cursor-pointer transition-all"
                   style={{
                     width: '33px',
                     height: '33px',
-                    border: isHovered ? '2px solid #3b82f6' : '1px solid #999',
+                    border: isHovered || isHoveredByOffset ? '2px solid #3b82f6' : '1px solid #999',
                     backgroundColor: bgColor,
                     color: textColor,
-                    fontWeight: isHovered || isHighlighted ? 'bold' : 'normal',
-                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
-                    zIndex: isHovered ? 10 : isHighlighted ? 5 : 1,
-                    boxShadow: isHovered ? '0 2px 8px rgba(59, 130, 246, 0.5)' : 'none'
+                    fontWeight: isHovered || isHoveredByOffset || isHighlighted ? 'bold' : 'normal',
+                    transform: isHovered || isHoveredByOffset ? 'scale(1.05)' : 'scale(1)',
+                    zIndex: isHovered || isHoveredByOffset ? 10 : isHighlighted ? 5 : 1,
+                    boxShadow: isHovered || isHoveredByOffset ? '0 2px 8px rgba(59, 130, 246, 0.5)' : 'none'
                   }}
-                  onMouseEnter={() => onCellHover?.(cell.row, cell.col)}
-                  onMouseLeave={() => onCellLeave?.()}
+                  onMouseEnter={() => {
+                    onCellHover?.(cell.row, cell.col);
+                    onOffsetHover?.(cell.offset);
+                  }}
+                  onMouseLeave={() => {
+                    onCellLeave?.();
+                    onOffsetHover?.(null);
+                  }}
                   title={showCoords ? `Offset: ${cell.offset}\nCoord: ${formatCoord(showCoords[idx])}` : `Offset: ${cell.offset}`}
                 >
                   {displayValue}

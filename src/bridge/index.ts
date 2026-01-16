@@ -17,5 +17,6 @@ export {
   offsetToCoordinate,
   generateCoordinates,
   countElements,
+  offsetToCoordList,
 } from './layoutBridge';
 export type { LayoutValue, ParsedLayout, CompositionResult } from './types';
