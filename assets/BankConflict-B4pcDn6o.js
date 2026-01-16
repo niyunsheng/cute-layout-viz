@@ -1,1 +1,0 @@
-import{j as t}from"./index-CyG5ptUr.js";function a(){return t.jsxs("div",{className:"max-w-6xl p-0 leading-relaxed text-black",children:[t.jsx("h1",{className:"text-4xl m-0 text-black",children:"Bank Conflict"}),t.jsx("p",{className:"text-xl text-gray-600 mt-4",children:"Coming Soon..."})]})}export{a as default};
